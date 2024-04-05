@@ -6,7 +6,7 @@
 #include <string.h>
 #include <time.h>
 
-void dir_recursiv(const char *dir2)
+void dir_recursiv(const char *dir2 , FILE *f)
 {
     DIR *dir = opendir(dir2);
     struct stat st;
@@ -32,13 +32,13 @@ void dir_recursiv(const char *dir2)
         }
 
         if (S_ISDIR(st.st_mode)) {
-            printf("Director: %s\n", d->d_name);
-            dir_recursiv(c);
+            fprintf(f , "Director: %s\n", d->d_name);
+            dir_recursiv(c , f);
         } else {
-            printf("ID: %ld\n", st.st_ino);
-            printf("Nume: %s\n", d->d_name);
-            printf("Ultima modificare: %s", ctime(&st.st_mtime));
-            printf("Marime fisier: %ld bytes\n", st.st_size);
+            fprintf(f , "ID: %ld\n", st.st_ino);
+            fprintf(f , "Nume: %s\n", d->d_name);
+            fprintf(f , "Ultima modificare: %s", ctime(&st.st_mtime));
+            fprintf(f , "Marime fisier: %ld bytes\n", st.st_size);
         }
     
     }
@@ -54,7 +54,15 @@ int main(int argc , char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    dir_recursiv(argv[1]);
+    FILE *f = fopen("statistica.txt" , "w");
+    if(!f){
+        fprintf(stderr , "Eroare la deschiderea fisierului\n");
+        exit(EXIT_FAILURE);
+    }
+
+    dir_recursiv(argv[1] , f);
+
+    fclose(f);
 
     return 0;
 }
