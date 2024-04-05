@@ -5,6 +5,39 @@
 #include <sys/types.h>
 #include <string.h>
 #include <time.h>
+#include <ctype.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+
+void nr_litere(const char *f, int *nr) {
+    int fd = open(f, O_RDONLY , 0);
+
+    if (fd == -1) {
+        fprintf(stderr, "Eroare la deschiderea fisierului\n");
+        return;
+    }
+
+    char buff[1024];
+    ssize_t bytes;
+
+    while ((bytes = read(fd, buff, 1024)) > 0) {
+        for (ssize_t i = 0; i < bytes; i++) {
+            char c = buff[i];
+            if (isalpha(c)) {
+                if (isupper(c)) {
+                    nr[c - 'A']++;
+                } else {
+                    nr[c - 'a']++;
+                }
+            }
+        }
+
+    }
+
+    close(fd);
+
+}
 
 void dir_recursiv(const char *dir2 , FILE *f)
 {
@@ -30,6 +63,9 @@ void dir_recursiv(const char *dir2 , FILE *f)
             fprintf(stderr , "Eroare la accesarea metadatelor pentru %s\n", d->d_name);
             continue;
         }
+        
+        
+        
 
         if (S_ISDIR(st.st_mode)) {
             fprintf(f , "Director: %s\n", d->d_name);
@@ -49,7 +85,7 @@ void dir_recursiv(const char *dir2 , FILE *f)
 
 int main(int argc , char *argv[])
 {
-    if(argc != 2){
+    if(argc != 4){
         fprintf(stderr , "numar incorect de variabile\n");
         exit(EXIT_FAILURE);
     }
