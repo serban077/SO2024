@@ -10,36 +10,7 @@
 #include <unistd.h>
 
 
-void nr_litere(const char *f, int *nr) {
-    int fd = open(f, O_RDONLY , 0);
-
-    if (fd == -1) {
-        fprintf(stderr, "Eroare la deschiderea fisierului\n");
-        return;
-    }
-
-    char buff[1024];
-    ssize_t bytes;
-
-    while ((bytes = read(fd, buff, 1024)) > 0) {
-        for (ssize_t i = 0; i < bytes; i++) {
-            char c = buff[i];
-            if (isalpha(c)) {
-                if (isupper(c)) {
-                    nr[c - 'A']++;
-                } else {
-                    nr[c - 'a']++;
-                }
-            }
-        }
-
-    }
-
-    close(fd);
-
-}
-
-void dir_recursiv(const char *dir2 , FILE *f)
+void dir_recursiv(const char *dir2 , int fd)
 {
     DIR *dir = opendir(dir2);
     struct stat st;
@@ -51,54 +22,100 @@ void dir_recursiv(const char *dir2 , FILE *f)
     }
 
     while((d = readdir(dir)) != NULL){
-         if (strcmp(d->d_name, ".") == 0 || strcmp(d->d_name, "..") == 0){
+        if (strcmp(d->d_name, ".") == 0 || strcmp(d->d_name, "..") == 0){
             continue;
-         }
+        }
 
         char c[2048];
         sprintf(c , "%s/%s" , dir2 , d->d_name);
 
-    
         if (stat(c , &st) < 0) {
             fprintf(stderr , "Eroare la accesarea metadatelor pentru %s\n", d->d_name);
             continue;
         }
-        
-        
-        
 
         if (S_ISDIR(st.st_mode)) {
-            fprintf(f , "Director: %s\n", d->d_name);
-            dir_recursiv(c , f);
+            char buf[1024];
+            sprintf(buf, "Director: %s\n", d->d_name);
+            write(fd, buf, strlen(buf));
+            dir_recursiv(c , fd);
         } else {
-            fprintf(f , "ID: %ld\n", st.st_ino);
-            fprintf(f , "Nume: %s\n", d->d_name);
-            fprintf(f , "Ultima modificare: %s", ctime(&st.st_mtime));
-            fprintf(f , "Marime fisier: %ld bytes\n", st.st_size);
+            char buf[1024];
+            sprintf(buf, "ID: %ld\n", st.st_ino);
+            write(fd, buf, strlen(buf));
+            sprintf(buf, "Nume: %s\n", d->d_name);
+            write(fd, buf, strlen(buf));
+            sprintf(buf, "Ultima modificare: %s", ctime(&st.st_mtime));
+            write(fd, buf, strlen(buf));
+            sprintf(buf, "Marime fisier: %ld bytes\n", st.st_size);
+            write(fd, buf, strlen(buf));
         }
-    
     }
 
-     closedir(dir);
+    closedir(dir);
+}
 
+void actualizeaza_snapshot(const char *dir_path, const char *dir_iesire) {
+    char output_path[1024];
+    sprintf(output_path, "%s/snapshots.txt", dir_iesire);
+    int fd = open(output_path, O_WRONLY | O_CREAT | O_TRUNC , 0644);
+    if(fd == -1){
+        fprintf(stderr , "Eroare la fisierul snapshot\n");
+        exit(EXIT_FAILURE);
+    }
+
+    dir_recursiv(dir_path, fd);
+
+    close(fd);
 }
 
 int main(int argc , char *argv[])
 {
-    if(argc != 4){
-        fprintf(stderr , "numar incorect de variabile\n");
+    if(argc < 3 || argc > 10){
+        fprintf(stderr , "Numar incorect de argumente\n");
         exit(EXIT_FAILURE);
     }
 
-    FILE *f = fopen("statistica.txt" , "w");
-    if(!f){
-        fprintf(stderr , "Eroare la deschiderea fisierului\n");
+    char *dir_iesire = NULL;
+    int nr_directoare = 0;
+    char *directoare[10];
+
+    for(int i = 1; i < argc; i++) {
+        if(strcmp(argv[i], "-o") == 0) {
+            if(i + 1 < argc) {
+                dir_iesire = argv[i + 1];
+                i++; 
+            } else {
+                fprintf(stderr, "lipsa dir de iesire\n");
+                exit(EXIT_FAILURE);
+            }
+        } else {
+            if(nr_directoare < 10) {
+                directoare[nr_directoare] = argv[i];
+                nr_directoare++;
+            } else {
+                fprintf(stderr, "Prea multe directoare\n");
+                exit(EXIT_FAILURE);
+            }
+        }
+    }
+
+    
+    struct stat st;
+    if(stat(dir_iesire, &st) == -1 || !S_ISDIR(st.st_mode)) {
+        fprintf(stderr, "Directorul de iesire nu este valid\n");
         exit(EXIT_FAILURE);
     }
 
-    dir_recursiv(argv[1] , f);
+    
+    for(int i = 0; i < nr_directoare; i++) {
+        if(stat(directoare[i], &st) == -1 || !S_ISDIR(st.st_mode)) {
+            fprintf(stderr, "%s nu este un director valid\n", directoare[i]);
+            continue;
+        }
 
-    fclose(f);
+        actualizeaza_snapshot(directoare[i], dir_iesire);
+    }
 
     return 0;
 }
